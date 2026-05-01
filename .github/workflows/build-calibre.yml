@@ -22,16 +22,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y dpkg-dev apt-utils curl tar binutils
 
-      - name: Türsteher wecken (GPG Key laden & Trust setzen)
+      - name: Türsteher wecken (GPG Key laden & ID sichern)
         run: |
-          # Den privaten Key aus den GitHub Secrets importieren
+          # Den privaten Key importieren
           echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
           
-          # Die Key-ID automatisch rausfischen
-          KEY_ID=$(gpg --list-keys --with-colons | grep "^pub" | cut -d: -f5)
+          # Wir holen uns die echte Key-ID direkt aus dem System
+          # Das ist sicherer als die Mailadresse zu nutzen
+          RAW_KEY_ID=$(gpg --list-secret-keys --with-colons | grep "^sec" | cut -d: -f5)
+          echo "MY_KEY_ID=$RAW_KEY_ID" >> $GITHUB_ENV
           
-          # GPG sagen, dass wir dem Schlüssel zu 100% vertrauen
-          echo -e "5\ny\n" | gpg --batch --command-fd 0 --expert --edit-key $KEY_ID trust
+          # Dem Key blind vertrauen
+          echo -e "5\ny\n" | gpg --batch --command-fd 0 --expert --edit-key $RAW_KEY_ID trust
 
       - name: Calibre saugen und als .deb einwickeln
         run: |
@@ -53,20 +55,15 @@ jobs:
           mkdir -p repo
           mv keules-calibre.deb repo/
           cd repo
-          
-          # GitHub-Putzmann (Jekyll) aussperren
           touch .nojekyll
           
-          # Paketlisten erstellen
           dpkg-scanpackages . /dev/null > Packages
           gzip -9c Packages > Packages.gz
-          
-          # Release-Datei für APT basteln
           apt-ftparchive -o APT::FTPArchive::Release::Architectures="amd64" release . > Release
           
-          # Jetzt wird gestempelt! --local-user sorgt dafür, dass er deinen Key nimmt.
-          gpg --batch --yes --local-user sascha@montyb.de -abs -o Release.gpg Release
-          gpg --batch --yes --local-user sascha@montyb.de --clearsign -o InRelease Release
+          # HIER DER TRICK: Wir nutzen die Key-ID aus der Umgebungsvariable
+          gpg --batch --yes --local-user ${{ env.MY_KEY_ID }} -abs -o Release.gpg Release
+          gpg --batch --yes --local-user ${{ env.MY_KEY_ID }} --clearsign -o InRelease Release
 
       - name: Paket auf die Laderampe stellen
         uses: actions/upload-pages-artifact@v3
