@@ -3,9 +3,8 @@ name: Build and Sign Calibre Repo
 on:
   schedule:
     - cron: "0 0 * * 0" # Startet jeden Sonntag um Mitternacht
-  workflow_dispatch: # Das ist dein Knopf, um es jederzeit manuell zu starten
+  workflow_dispatch: # Dein Knopf für den manuellen Start
 
-# Ganz wichtig: Die Erlaubnis, dass der Arbeiter Pakete ins Schaufenster legen darf
 permissions:
   contents: read
   pages: write
@@ -29,14 +28,14 @@ jobs:
 
       - name: Calibre saugen und als .deb einwickeln
         run: |
-          # Wir bauen uns die saubere Ordnerstruktur für ein Debian-Paket
+          # Wir bauen uns die saubere Ordnerstruktur
           mkdir -p build/opt/calibre build/usr/bin build/DEBIAN
           
           # Frisches Calibre Binary direkt vom Meister ziehen
           curl -L -o calibre.tar.xz "https://calibre-ebook.com/dist/linux64"
           tar xf calibre.tar.xz -C build/opt/calibre
           
-          # Verknüpfung anlegen, damit du später einfach 'calibre' ins Terminal tippen kannst
+          # Verknüpfung anlegen
           ln -s /opt/calibre/calibre build/usr/bin/calibre
           
           # Die Steuerkarte fürs Paket ausfüllen
@@ -57,8 +56,9 @@ jobs:
           mv keules-calibre.deb repo/
           cd repo
           
-          # Die Paketliste für apt-get schreiben
-          dpkg-scanpackages . /dev/null | gzip -9c > Packages.gz
+          # HIER IST DER FIX FÜR DEN BEAMTEN! (Beide Dateien auf den Tisch)
+          dpkg-scanpackages . /dev/null > Packages
+          gzip -9c Packages > Packages.gz
           
           # Die Release-Datei erstellen
           apt-ftparchive release . > Release
