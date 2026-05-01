@@ -2,8 +2,8 @@ name: Build and Sign Calibre Repo
 
 on:
   schedule:
-    - cron: "0 0 * * 0" # Startet jeden Sonntag um Mitternacht
-  workflow_dispatch: # Dein Knopf für den manuellen Start
+    - cron: "0 0 * * 0"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -28,17 +28,10 @@ jobs:
 
       - name: Calibre saugen und als .deb einwickeln
         run: |
-          # Wir bauen uns die saubere Ordnerstruktur
           mkdir -p build/opt/calibre build/usr/bin build/DEBIAN
-          
-          # Frisches Calibre Binary direkt vom Meister ziehen
           curl -L -o calibre.tar.xz "https://calibre-ebook.com/dist/linux64"
           tar xf calibre.tar.xz -C build/opt/calibre
-          
-          # Verknüpfung anlegen
           ln -s /opt/calibre/calibre build/usr/bin/calibre
-          
-          # Die Steuerkarte fürs Paket ausfüllen
           cat <<EOF > build/DEBIAN/control
           Package: keules-calibre
           Version: $(date +'%Y.%m.%d')
@@ -46,8 +39,6 @@ jobs:
           Maintainer: Keules Calibre <sascha@montyb.de>
           Description: Das frischeste Calibre, direkt vom Fließband
           EOF
-          
-          # Das .deb Paket zusammenkleben
           dpkg-deb --build build keules-calibre.deb
 
       - name: Apt-Repository basteln und stempeln
@@ -56,14 +47,12 @@ jobs:
           mv keules-calibre.deb repo/
           cd repo
           
-          # Beide Dateien auf den Tisch
+          # HIER IST DER NEUE TRICK: Den GitHub-Putzmann aussperren!
+          touch .nojekyll
+          
           dpkg-scanpackages . /dev/null > Packages
           gzip -9c Packages > Packages.gz
-          
-          # HIER IST DER FIX FÜR DEN TRIXIE-TÜV-PRÜFER!
           apt-ftparchive -o APT::FTPArchive::Release::Architectures="amd64" release . > Release
-          
-          # Und BAM! Deinen Stempel draufhauen!
           gpg --default-key sascha@montyb.de --batch --yes -abs -o Release.gpg Release
           gpg --default-key sascha@montyb.de --batch --yes --clearsign -o InRelease Release
 
