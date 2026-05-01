@@ -22,9 +22,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y dpkg-dev apt-utils curl tar binutils
 
-      - name: Türsteher wecken (GPG Key aus dem Tresor laden)
+      - name: Türsteher wecken (GPG Key laden & Trust setzen)
         run: |
+          # Den privaten Key aus den GitHub Secrets importieren
           echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          
+          # Die Key-ID automatisch rausfischen
+          KEY_ID=$(gpg --list-keys --with-colons | grep "^pub" | cut -d: -f5)
+          
+          # GPG sagen, dass wir dem Schlüssel zu 100% vertrauen
+          echo -e "5\ny\n" | gpg --batch --command-fd 0 --expert --edit-key $KEY_ID trust
 
       - name: Calibre saugen und als .deb einwickeln
         run: |
@@ -47,14 +54,19 @@ jobs:
           mv keules-calibre.deb repo/
           cd repo
           
-          # HIER IST DER NEUE TRICK: Den GitHub-Putzmann aussperren!
+          # GitHub-Putzmann (Jekyll) aussperren
           touch .nojekyll
           
+          # Paketlisten erstellen
           dpkg-scanpackages . /dev/null > Packages
           gzip -9c Packages > Packages.gz
+          
+          # Release-Datei für APT basteln
           apt-ftparchive -o APT::FTPArchive::Release::Architectures="amd64" release . > Release
-          gpg --default-key sascha@montyb.de --batch --yes -abs -o Release.gpg Release
-          gpg --default-key sascha@montyb.de --batch --yes --clearsign -o InRelease Release
+          
+          # Jetzt wird gestempelt! --local-user sorgt dafür, dass er deinen Key nimmt.
+          gpg --batch --yes --local-user sascha@montyb.de -abs -o Release.gpg Release
+          gpg --batch --yes --local-user sascha@montyb.de --clearsign -o InRelease Release
 
       - name: Paket auf die Laderampe stellen
         uses: actions/upload-pages-artifact@v3
