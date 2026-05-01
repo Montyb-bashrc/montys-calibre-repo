@@ -56,12 +56,12 @@ jobs:
           mv keules-calibre.deb repo/
           cd repo
           
-          # HIER IST DER FIX FÜR DEN BEAMTEN! (Beide Dateien auf den Tisch)
+          # Beide Dateien auf den Tisch
           dpkg-scanpackages . /dev/null > Packages
           gzip -9c Packages > Packages.gz
           
-          # Die Release-Datei erstellen
-          apt-ftparchive release . > Release
+          # HIER IST DER FIX FÜR DEN TRIXIE-TÜV-PRÜFER!
+          apt-ftparchive -o APT::FTPArchive::Release::Architectures="amd64" release . > Release
           
           # Und BAM! Deinen Stempel draufhauen!
           gpg --default-key sascha@montyb.de --batch --yes -abs -o Release.gpg Release
