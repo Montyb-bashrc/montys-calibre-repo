@@ -1,0 +1,76 @@
+name: Build and Sign Calibre Repo
+
+on:
+  schedule:
+    - cron: "0 0 * * 0" # Startet jeden Sonntag um Mitternacht
+  workflow_dispatch: # Das ist dein Knopf, um es jederzeit manuell zu starten
+
+# Ganz wichtig: Die Erlaubnis, dass der Arbeiter Pakete ins Schaufenster legen darf
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bauplatz einrichten
+        uses: actions/checkout@v4
+
+      - name: Werkzeugkiste holen (Abhängigkeiten)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev apt-utils curl tar binutils
+
+      - name: Türsteher wecken (GPG Key aus dem Tresor laden)
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+
+      - name: Calibre saugen und als .deb einwickeln
+        run: |
+          # Wir bauen uns die saubere Ordnerstruktur für ein Debian-Paket
+          mkdir -p build/opt/calibre build/usr/bin build/DEBIAN
+          
+          # Frisches Calibre Binary direkt vom Meister ziehen
+          curl -L -o calibre.tar.xz "https://calibre-ebook.com/dist/linux64"
+          tar xf calibre.tar.xz -C build/opt/calibre
+          
+          # Verknüpfung anlegen, damit du später einfach 'calibre' ins Terminal tippen kannst
+          ln -s /opt/calibre/calibre build/usr/bin/calibre
+          
+          # Die Steuerkarte fürs Paket ausfüllen
+          cat <<EOF > build/DEBIAN/control
+          Package: keules-calibre
+          Version: $(date +'%Y.%m.%d')
+          Architecture: amd64
+          Maintainer: Keules Calibre <sascha@montyb.de>
+          Description: Das frischeste Calibre, direkt vom Fließband
+          EOF
+          
+          # Das .deb Paket zusammenkleben
+          dpkg-deb --build build keules-calibre.deb
+
+      - name: Apt-Repository basteln und stempeln
+        run: |
+          mkdir -p repo
+          mv keules-calibre.deb repo/
+          cd repo
+          
+          # Die Paketliste für apt-get schreiben
+          dpkg-scanpackages . /dev/null | gzip -9c > Packages.gz
+          
+          # Die Release-Datei erstellen
+          apt-ftparchive release . > Release
+          
+          # Und BAM! Deinen Stempel draufhauen!
+          gpg --default-key sascha@montyb.de --batch --yes -abs -o Release.gpg Release
+          gpg --default-key sascha@montyb.de --batch --yes --clearsign -o InRelease Release
+
+      - name: Paket auf die Laderampe stellen
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: repo/
+
+      - name: Ab ins Schaufenster (Deploy to GitHub Pages)
+        uses: actions/deploy-pages@v4
