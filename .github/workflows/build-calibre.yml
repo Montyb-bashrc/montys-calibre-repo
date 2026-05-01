@@ -42,18 +42,18 @@ jobs:
           tar xf calibre.tar.xz -C build/opt/calibre
           ln -s /opt/calibre/calibre build/usr/bin/calibre
           cat <<EOF > build/DEBIAN/control
-          Package: montys-calibre
+          Package: keules-calibre
           Version: $(date +'%Y.%m.%d')
           Architecture: amd64
           Maintainer: Keules Calibre <sascha@montyb.de>
           Description: Das frischeste Calibre, direkt vom Fließband
           EOF
-          dpkg-deb --build build montys-calibre.deb
+          dpkg-deb --build build keules-calibre.deb
 
       - name: Apt-Repository basteln und stempeln
         run: |
           mkdir -p repo
-          mv montys-calibre.deb repo/
+          mv keules-calibre.deb repo/
           cd repo
           touch .nojekyll
           
